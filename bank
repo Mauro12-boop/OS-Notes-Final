@@ -1,0 +1,152 @@
+import threading
+import time
+import random
+
+class Customer:
+    def __init__(self, customer_id, name, account_balance):
+        self.customer_id = customer_id
+        self.name = name
+        self.account_balance = account_balance
+        
+    def make_deposit(self, amount):
+        """Simulates making a deposit"""
+        self.account_balance += amount
+        print(f"  Customer {self.customer_id} ({self.name}) deposited ${amount}. New balance: ${self.account_balance}")
+        
+    def make_withdrawal(self, amount):
+        """Simulates making a withdrawal"""
+        if self.account_balance >= amount:
+            self.account_balance -= amount
+            print(f"  Customer {self.customer_id} ({self.name}) withdrew ${amount}. New balance: ${self.account_balance}")
+        else:
+            print(f"  Customer {self.customer_id} ({self.name}) insufficient funds for withdrawal of ${amount}")
+    
+    def check_balance(self):
+        """Simulates checking account balance"""
+        print(f"  Customer {self.customer_id} ({self.name}) checked balance: ${self.account_balance}")
+
+
+class Cashier:
+    def __init__(self, cashier_id):
+        self.cashier_id = cashier_id
+        self.is_available = True
+        
+    def process_transaction(self, customer):
+        """Randomly selects and performs a banking transaction for a customer"""
+        self.is_available = False
+        
+        # Randomly select a transaction type
+        transaction_type = random.choice(["deposit", "withdrawal", "balance_check"])
+        
+        print(f"Cashier {self.cashier_id} is processing transaction for Customer {customer.customer_id} ({customer.name})")
+        
+        # Simulate transaction processing time
+        time.sleep(random.uniform(2, 4))
+        
+        # Perform the transaction
+        if transaction_type == "deposit":
+            amount = random.randint(50, 500)
+            customer.make_deposit(amount)
+        elif transaction_type == "withdrawal":
+            amount = random.randint(20, 200)
+            customer.make_withdrawal(amount)
+        else:
+            customer.check_balance()
+        
+        print(f"Cashier {self.cashier_id} finished transaction for Customer {customer.customer_id}")
+        
+        self.is_available = True
+
+
+class BankBranch:
+    def __init__(self):
+        self.customers = []
+        self.cashiers = []
+        self.lock = threading.Lock()
+        
+    def add_customer(self, customer):
+        """Adds a customer to the system"""
+        self.customers.append(customer)
+        
+    def add_cashier(self, cashier):
+        """Adds a cashier to the system"""
+        self.cashiers.append(cashier)
+    
+    def customer_thread_function(self, customer):
+        """Function that runs in each customer thread"""
+        # Random delay before entering bank
+        time.sleep(random.uniform(0.5, 2.0))
+        
+        print(f"Customer {customer.customer_id} ({customer.name}) entered the bank")
+        
+        # Wait for available cashier
+        cashier = None
+        while cashier is None:
+            with self.lock:
+                for c in self.cashiers:
+                    if c.is_available:
+                        cashier = c
+                        break
+            if cashier is None:
+                time.sleep(0.5)
+        
+        # Process transaction with cashier
+        cashier.process_transaction(customer)
+        
+        print(f"Customer {customer.customer_id} ({customer.name}) left the bank")
+    
+    def start_processing(self):
+        """Simulates the bank branch's operation, including customers interacting with cashiers"""
+        print("Bank Branch Opened")
+        print(f"Total Customers: {len(self.customers)}")
+        print(f"Total Cashiers: {len(self.cashiers)}")
+        print()
+        
+        # Start a thread for each customer
+        customer_threads = []
+        for customer in self.customers:
+            thread = threading.Thread(target=self.customer_thread_function, args=(customer,))
+            thread.start()
+            customer_threads.append(thread)
+        
+        # Wait for all customer threads to finish
+        for thread in customer_threads:
+            thread.join()
+        
+        print()
+        print("All customers have been served!")
+        print()
+        print("Final Customer Balances:")
+        for customer in self.customers:
+            print(f"  Customer {customer.customer_id} ({customer.name}): ${customer.account_balance}")
+
+
+# Main program
+if __name__ == "__main__":
+    # Create the bank branch
+    branch = BankBranch()
+    
+    # Create some customers
+    customer1 = Customer(1, "Alice", 1000)
+    customer2 = Customer(2, "Bob", 1500)
+    customer3 = Customer(3, "Charlie", 800)
+    customer4 = Customer(4, "Diana", 2000)
+    customer5 = Customer(5, "Eve", 1200)
+    
+    # Add customers to the branch
+    branch.add_customer(customer1)
+    branch.add_customer(customer2)
+    branch.add_customer(customer3)
+    branch.add_customer(customer4)
+    branch.add_customer(customer5)
+    
+    # Create cashiers
+    cashier1 = Cashier(1)
+    cashier2 = Cashier(2)
+    
+    # Add cashiers to the branch
+    branch.add_cashier(cashier1)
+    branch.add_cashier(cashier2)
+    
+    # Start the simulation
+    branch.start_processing()
