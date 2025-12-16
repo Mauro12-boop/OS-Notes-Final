@@ -1,0 +1,235 @@
+Attributes:
+user_id, name, issue_description
+Methods:
+submit_ticket, wait_for_resolution, get_status
+SupportAgent:
+
+Attributes:
+agent_id, is_available
+Methods:
+resolve_ticket(user)
+SupportCenter:
+
+Attributes:
+users, agents, ticket_list
+Methods:
+add_user, add_agent, start_support
+Instructions
+User Class:
+Create a User class to represent a person needing tech support. Each user has a unique user_id, a name, and an issue_description. Implement the following methods:
+
+submit_ticket(): Adds their issue to a shared ticket list.
+wait_for_resolution(): Simulates the user waiting for an agent to respond.
+get_status(): Reports whether their issue was resolved.
+SupportAgent Class:
+Design a SupportAgent class representing a tech support agent.
+
+Each agent has an agent_id and an is_available status.
+The resolve_ticket(user) method simulates helping the user by resolving their ticket (simulated with a sleep delay and a status update).
+SupportCenter Class:
+This class manages the overall simulation:
+
+Maintains lists of users, agents, and a shared ticket list.
+add_user(user) and add_agent(agent) methods to populate the system.
+start_support():
+Starts a thread for each user to submit a ticket.
+Starts a thread for each agent that loops to resolve tickets from the shared list.
+The simulation ends once all tickets have been resolved.
+Concurrency Setup:
+Use Python threading to simulate real-time ticket submissions and processing.
+Each User runs in its own thread, submitting a ticket.
+Each SupportAgent runs in its own thread, processing tickets from the shared list.
+The shared ticket list must be synchronized using locks (threading.Lock) to avoid race conditions.
+Random Behavior:
+Use the random module to simulate:
+How long agents take to resolve a ticket.
+The type or severity of issues (e.g., "Network Issue", "Software Bug", "Hardware Failure")
+The time it takes to solve.
+
+
+
+
+
+
+
+CODE
+
+
+import threading
+import time
+import random
+
+class User:
+    def __init__(self, user_id, name, issue_description):
+        self.user_id = user_id
+        self.name = name
+        self.issue_description = issue_description
+        self.is_resolved = False
+        
+    def submit_ticket(self, support_center):
+        """Adds their issue to a shared ticket list"""
+        with support_center.lock:
+            support_center.ticket_list.append(self)
+            print(f"User {self.user_id} ({self.name}) submitted ticket: {self.issue_description}")
+    
+    def wait_for_resolution(self):
+        """Simulates the user waiting for an agent to respond"""
+        while not self.is_resolved:
+            time.sleep(0.5)
+    
+    def get_status(self):
+        """Reports whether their issue was resolved"""
+        if self.is_resolved:
+            return f"User {self.user_id} ({self.name}): RESOLVED"
+        else:
+            return f"User {self.user_id} ({self.name}): PENDING"
+
+
+class SupportAgent:
+    def __init__(self, agent_id):
+        self.agent_id = agent_id
+        self.is_available = True
+        
+    def resolve_ticket(self, user):
+        """Simulates helping the user by resolving their ticket"""
+        self.is_available = False
+        
+        # Random resolution time between 2 and 6 seconds
+        resolution_time = random.uniform(2, 6)
+        
+        print(f"  Agent {self.agent_id} is resolving ticket for {user.name}")
+        
+        # Simulate work being done
+        time.sleep(resolution_time)
+        
+        # Mark user's issue as resolved
+        user.is_resolved = True
+        
+        print(f"  Agent {self.agent_id} resolved ticket for {user.name}")
+        
+        self.is_available = True
+
+
+class SupportCenter:
+    def __init__(self):
+        self.users = []
+        self.agents = []
+        self.ticket_list = []
+        self.lock = threading.Lock()
+        
+    def add_user(self, user):
+        """Add a user to the support center"""
+        self.users.append(user)
+        
+    def add_agent(self, agent):
+        """Add a support agent to the center"""
+        self.agents.append(agent)
+    
+    def user_thread_function(self, user):
+        """Function that runs in each user thread"""
+        # Random delay before submitting ticket
+        time.sleep(random.uniform(0.5, 2.0))
+        
+        user.submit_ticket(self)
+        user.wait_for_resolution()
+    
+    def agent_thread_function(self, agent):
+        """Function that runs in each agent thread"""
+        while True:
+            user_to_help = None
+            
+            # Check if there are any unresolved tickets
+            with self.lock:
+                for user in self.ticket_list:
+                    if not user.is_resolved:
+                        user_to_help = user
+                        break
+            
+            # If found a user to help, resolve their ticket
+            if user_to_help:
+                agent.resolve_ticket(user_to_help)
+            else:
+                # No tickets to process, check if all users are done
+                all_resolved = True
+                for user in self.users:
+                    if not user.is_resolved:
+                        all_resolved = False
+                        break
+                
+                if all_resolved:
+                    break
+                
+                # Wait a bit before checking again
+                time.sleep(0.5)
+    
+    def start_support(self):
+        """Starts the support center simulation"""
+        print("Support Center Started")
+        print(f"Total Users: {len(self.users)}")
+        print(f"Total Agents: {len(self.agents)}")
+        print()
+        
+        # Start a thread for each user
+        user_threads = []
+        for user in self.users:
+            thread = threading.Thread(target=self.user_thread_function, args=(user,))
+            thread.start()
+            user_threads.append(thread)
+        
+        # Start a thread for each agent
+        agent_threads = []
+        for agent in self.agents:
+            thread = threading.Thread(target=self.agent_thread_function, args=(agent,))
+            thread.start()
+            agent_threads.append(thread)
+        
+        # Wait for all user threads to finish
+        for thread in user_threads:
+            thread.join()
+        
+        # Wait for all agent threads to finish
+        for thread in agent_threads:
+            thread.join()
+        
+        # Print final status
+        print()
+        print("All tickets have been resolved!")
+        print()
+        print("Final Status:")
+        for user in self.users:
+            print(f"  {user.get_status()}")
+
+
+# Main program
+if __name__ == "__main__":
+    # Create the support center
+    center = SupportCenter()
+    
+    # Create some users with different issues
+    issue_types = ["Network Issue", "Software Bug", "Hardware Failure", 
+                   "Password Reset", "Email Problem"]
+    
+    user1 = User(1, "Alice", random.choice(issue_types))
+    user2 = User(2, "Bob", random.choice(issue_types))
+    user3 = User(3, "Charlie", random.choice(issue_types))
+    user4 = User(4, "Diana", random.choice(issue_types))
+    user5 = User(5, "Eve", random.choice(issue_types))
+    
+    # Add users to the support center
+    center.add_user(user1)
+    center.add_user(user2)
+    center.add_user(user3)
+    center.add_user(user4)
+    center.add_user(user5)
+    
+    # Create support agents
+    agent1 = SupportAgent(1)
+    agent2 = SupportAgent(2)
+    
+    # Add agents to the support center
+    center.add_agent(agent1)
+    center.add_agent(agent2)
+    
+    # Start the simulation
+    center.start_support()
+
