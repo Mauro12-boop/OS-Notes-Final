@@ -1,0 +1,143 @@
+import threading
+import time
+import random
+
+class Car:
+    def __init__(self, car_id, model):
+        self.car_id = car_id
+        self.model = model
+        self.payment_status = False
+        
+    def make_payment(self):
+        """Simulates the payment process"""
+        print(f"Car {self.car_id} ({self.model}) is making payment...")
+        time.sleep(random.uniform(1, 2))
+        self.payment_status = True
+        print(f"Car {self.car_id} ({self.model}) payment completed")
+    
+    def get_washed(self):
+        """Indicates that the car is ready for washing"""
+        print(f"Car {self.car_id} ({self.model}) is ready for washing")
+
+
+class WashingMachine:
+    def __init__(self, machine_id):
+        self.machine_id = machine_id
+        self.is_available = True
+        
+    def start_wash(self, car):
+        """Simulates the washing process"""
+        self.is_available = False
+        print(f"  Washing Machine {self.machine_id} started washing Car {car.car_id}")
+        time.sleep(random.uniform(3, 5))
+        
+    def end_wash(self, car):
+        """Ends the washing process"""
+        print(f"  Washing Machine {self.machine_id} finished washing Car {car.car_id}")
+        self.is_available = True
+
+
+class Checkout:
+    def __init__(self):
+        self.lock = threading.Lock()
+        
+    def process_payment(self, car):
+        """Accepts payment from a car before it can proceed to the washing machine"""
+        with self.lock:
+            car.make_payment()
+
+
+class CarWashSystem:
+    def __init__(self):
+        self.cars = []
+        self.washing_machines = []
+        self.checkout = Checkout()
+        
+    def add_car(self, car):
+        """Adds a car to the system"""
+        self.cars.append(car)
+        
+    def add_washing_machine(self, machine):
+        """Adds a washing machine to the system"""
+        self.washing_machines.append(machine)
+    
+    def car_thread_function(self, car):
+        """Function that runs in each car thread"""
+        # Random delay before arriving
+        time.sleep(random.uniform(0.5, 2.0))
+        
+        print(f"Car {car.car_id} ({car.model}) arrived at car wash")
+        
+        # Process payment at checkout
+        self.checkout.process_payment(car)
+        
+        # Car is ready for washing
+        car.get_washed()
+        
+        # Wait for available washing machine
+        machine = None
+        while machine is None:
+            for m in self.washing_machines:
+                if m.is_available:
+                    machine = m
+                    break
+            if machine is None:
+                time.sleep(0.5)
+        
+        # Start washing
+        machine.start_wash(car)
+        machine.end_wash(car)
+        
+        print(f"Car {car.car_id} ({car.model}) finished and left the car wash")
+    
+    def start_car_wash_process(self):
+        """Simulates the car wash process, including payment and washing"""
+        print("Car Wash System Started")
+        print(f"Total Cars: {len(self.cars)}")
+        print(f"Total Washing Machines: {len(self.washing_machines)}")
+        print()
+        
+        # Start a thread for each car
+        car_threads = []
+        for car in self.cars:
+            thread = threading.Thread(target=self.car_thread_function, args=(car,))
+            thread.start()
+            car_threads.append(thread)
+        
+        # Wait for all car threads to finish
+        for thread in car_threads:
+            thread.join()
+        
+        print()
+        print("All cars have been washed!")
+
+
+# Main program
+if __name__ == "__main__":
+    # Create the car wash system
+    system = CarWashSystem()
+    
+    # Create some cars
+    car1 = Car(1, "Toyota Camry")
+    car2 = Car(2, "Honda Civic")
+    car3 = Car(3, "Ford Focus")
+    car4 = Car(4, "Tesla Model 3")
+    car5 = Car(5, "BMW 3 Series")
+    
+    # Add cars to the system
+    system.add_car(car1)
+    system.add_car(car2)
+    system.add_car(car3)
+    system.add_car(car4)
+    system.add_car(car5)
+    
+    # Create washing machines
+    machine1 = WashingMachine(1)
+    machine2 = WashingMachine(2)
+    
+    # Add washing machines to the system
+    system.add_washing_machine(machine1)
+    system.add_washing_machine(machine2)
+    
+    # Start the simulation
+    system.start_car_wash_process()
