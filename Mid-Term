@@ -1,0 +1,157 @@
+import threading
+import time
+import random
+
+# Configuracion
+NUM_PRODUCTS = 10
+RAW_QUEUE_MAX = 5
+PAINTED_QUEUE_MAX = 5
+ASSEMBLED_QUEUE_MAX = 5
+
+TIMES = {
+    'producer': (0.1, 0.3),
+    'painter': (0.2, 0.5),
+    'assembler': (0.2, 0.4),
+    'packager': (0.1, 0.2)
+}
+
+# Colas compartidas
+raw_queue = []
+painted_queue = []
+assembled_queue = []
+
+# Locks
+raw_lock = threading.Lock()
+painted_lock = threading.Lock()
+assembled_lock = threading.Lock()
+
+
+def producer():
+    for i in range(1, NUM_PRODUCTS + 1):
+        part = f"Part-{i}"
+        time.sleep(random.uniform(*TIMES['producer']))
+
+        # Esperar si la cola esta llena
+        while True:
+            with raw_lock:
+                if len(raw_queue) < RAW_QUEUE_MAX:
+                    raw_queue.append(part)
+                    print(f"[Producer] Produced: {part}")
+                    break
+            time.sleep(0.1)
+
+    # Mandar sentinel
+    with raw_lock:
+        raw_queue.append(None)
+    print("[Producer] Done")
+
+
+def painter(name):
+    while True:
+        part = None
+
+        # Coger parte de la cola
+        while True:
+            with raw_lock:
+                if len(raw_queue) > 0:
+                    part = raw_queue.pop(0)
+                    break
+            time.sleep(0.1)
+
+        if part is None:
+            # Devolver sentinel para otros painters y pasar al siguiente stage
+            with raw_lock:
+                raw_queue.append(None)
+            with painted_lock:
+                painted_queue.append(None)
+            print(f"[{name}] Exiting")
+            break
+
+        # Simular pintado
+        time.sleep(random.uniform(*TIMES['painter']))
+        painted_part = part + "-painted"
+
+        # Meter en la siguiente cola
+        while True:
+            with painted_lock:
+                if len(painted_queue) < PAINTED_QUEUE_MAX:
+                    painted_queue.append(painted_part)
+                    print(f"[{name}] Painted: {painted_part}")
+                    break
+            time.sleep(0.1)
+
+
+def assembler(name):
+    while True:
+        part = None
+
+        while True:
+            with painted_lock:
+                if len(painted_queue) > 0:
+                    part = painted_queue.pop(0)
+                    break
+            time.sleep(0.1)
+
+        if part is None:
+            with painted_lock:
+                painted_queue.append(None)
+            with assembled_lock:
+                assembled_queue.append(None)
+            print(f"[{name}] Exiting")
+            break
+
+        time.sleep(random.uniform(*TIMES['assembler']))
+        assembled_part = part + "-assembled"
+
+        while True:
+            with assembled_lock:
+                if len(assembled_queue) < ASSEMBLED_QUEUE_MAX:
+                    assembled_queue.append(assembled_part)
+                    print(f"[{name}] Assembled: {assembled_part}")
+                    break
+            time.sleep(0.1)
+
+
+def packager():
+    count = 0
+
+    while True:
+        part = None
+
+        while True:
+            with assembled_lock:
+                if len(assembled_queue) > 0:
+                    part = assembled_queue.pop(0)
+                    break
+            time.sleep(0.1)
+
+        if part is None:
+            print(f"[Packager] Total packaged: {count}")
+            break
+
+        time.sleep(random.uniform(*TIMES['packager']))
+        count += 1
+        print(f"[Packager] Packaged: {part}")
+
+
+def main():
+    threads = []
+
+    threads.append(threading.Thread(target=producer))
+    threads.append(threading.Thread(target=painter, args=("Painter-1",)))
+    threads.append(threading.Thread(target=painter, args=("Painter-2",)))
+    threads.append(threading.Thread(target=assembler, args=("Assembler-1",)))
+    threads.append(threading.Thread(target=assembler, args=("Assembler-2",)))
+    threads.append(threading.Thread(target=packager))
+
+    for t in threads:
+        t.start()
+
+    for t in threads:
+        t.join()
+
+    print("All stages finished.")
+
+
+if __name__ == "__main__":
+    main()
